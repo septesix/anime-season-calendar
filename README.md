@@ -134,8 +134,9 @@ used to be a free-text field, which is how a guessed time got recorded as high c
   creation; `update` reports success and changes nothing. Delete and recreate.
 - **Re-pull every id after a show premieres.** AniList corrects its own placeholder values afterwards
   — so a proof that you transcribed correctly is not a proof the source was right.
-- **Unfamiliar streamer names are not noise.** A real service (`OceanVeil`) was once filtered out as a
-  content-farm link, which deleted its entire catalog from a season list.
+- **Unfamiliar streamer names are not noise.** One unrecognised `externalLinks.site` value
+  (`OceanVeil`, a real service) mapped to nothing and 12 Fall-2026 titles were silently dropped from
+  a season build — found 9 days later by a full-catalog diff, not by any check in the pipeline.
 - **Bulk writes need an explicit human go-ahead**, after a grouped-by-weekday table and the gate's
   own summary line. `NEEDS-REVIEW` rows are never written silently.
 
