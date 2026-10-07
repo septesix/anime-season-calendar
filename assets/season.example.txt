@@ -1,0 +1,5 @@
+# title | first-air date | clock | mode | US service | confidence
+# modes: JST (JP slot) | ET (already US) | JST_SINGLE | ET_SINGLE (binge/one-off)
+The Apothecary Diaries S3|2026-10-02|23:00|JST|Crunchyroll|high
+Blue Box Season 2|2026-10-04|16:30|JST|Netflix|low
+Cyberpunk: Edgerunners 2|2026-10-20|00:00|ET_SINGLE|Netflix|high
