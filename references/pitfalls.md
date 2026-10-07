@@ -236,3 +236,28 @@ Times are ET and are **not localized** (identical in 5 locales; no tz metadata a
 `?date=` is ignored; future days say "Schedule Coming Soon" — verification, not planning.
 Published minute sits 0…+45 min after the JST instant, varying per show, which is the honest
 error bar on every derived Crunchyroll time in the calendar.
+
+## Colon-form times need the period prefix too
+
+`よる11:45` is 23:45. The kanji regex handled `よる/午後/深夜` but the colon regex did not,
+so every colon-form site silently produced a 12-early slot. It survived because the output
+*looked* plausible (`Wed 11:45 JST tv`) and the verdict just said `DIFFERS` instead of
+crashing. Symptom to look for: a site whose only evening slot lands at an 11 AM hour.
+Both regexes now feed one `adj()` helper — duplicate that arithmetic and you get to keep
+both kinds of wrong.
+
+## A comment line is not a data row
+
+`_vp_check.py` skipped only lines starting with `TITLE`, so every `#` doc comment in
+`season.txt` was counted as a malformed row and, worse, `# TITLE|first-air date|...` became
+a phantom title called `# TITLE`. The shipped example reported `failures=23` while all four
+real rows were fine. Any "the gate is blocking me" report should start with
+`grep -c '^[^#|]*$' season.txt` before anyone re-verifies a schedule.
+
+## CONF is decorative — enforcement lives only in the gate
+
+`et_schedule.sh` reads column 6 into `$conf` and never uses it; `add_verified.sh` never
+receives it. So a `low` row is written to the calendar exactly like a `high` one. The gate
+is the only thing that stops anything, and it now fails on `SRC=guess` regardless of CONF —
+without that, an honest `CONF=low` plus `SRC=guess` was a pass. Do not write prose that
+implies confidence is enforced downstream; say where it is actually checked.

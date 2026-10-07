@@ -19,6 +19,31 @@ which jq >/dev/null 2>&1 || apk add jq
 Confirm the target calendar exists and is writable (see `references/pitfalls.md` §1):
 `apple-calendar calendars` → look for `Anime Calendar`, `type=local`.
 
+## What each script is for
+
+Run `sh|python3 scripts/<name>` with no arguments for its usage line — the strings below are
+transcribed from those, not from memory.
+
+| File | Entry point | Called by |
+|---|---|---|
+| `official_slots.py <url>… [--expected "Wed 23:45"]` | manual, Phase 1 | — |
+| `cr_calendar.py [--days 7] [--grep RE] [--diff D]` | manual, Phase 1 + 5 | — |
+| `dst_audit.py [--boundary 2026-11-01]` | manual, Phase 5 | — |
+| `verify_provenance.sh prepare\|check` | the gate, Phase 2 | `_vp_check.py`, `probe_schedules.js` |
+| `et_schedule.sh <season.txt>` | Phase 2 | — |
+| `dst_legs.py <ep1-date> <jst-clock> <n_eps>` | leg generator | you, pasting into `add_verified.sh` input |
+| `add_verified.sh <sched.tsv> [calendar] [log] [--dry]` | Phase 4 | — |
+| `probe_schedules.js` | **template — never run directly** | `verify_provenance.sh prepare` |
+| `_vp_check.py <season.txt> <actual.tsv>` | **internal comparator** | `verify_provenance.sh check` |
+
+The two files marked internal are not referenced anywhere else in this document on purpose: if you
+find yourself invoking either one by hand, you have skipped the gate. `probe_schedules.js` contains
+`__IDS__`/`__FROM__`/`__TO__` placeholders and silently returns nothing useful until `prepare`
+substitutes them.
+
+`README.md` is the human-facing overview (design rationale, install, measured failure rates). This
+file is the operational procedure and wins on any conflict — the README is not read by the agent.
+
 ## Phase 1 — Research the lineup
 
 **No single source answers everything, and each source is early for a different question.**
@@ -40,6 +65,9 @@ full of round-number guesses.
 python3 scripts/official_slots.py https://rayearth-anime.com/ --expected "Wed 23:45"
 #    -> prints EVERY 放送/配信/リピート slot tagged, picks nothing. Choosing is a judgment:
 #       "earliest broadcast" hits repeats; "the TV slot" is wrong for Korean-origin simulcasts.
+#       With --expected it also prints `col10 ->`, paste-ready for season.txt column 10.
+#       Paste it; do not retype the slot — retyped claims carry no @host and the gate
+#       treats them as unproven (which is exactly how a wrong row used to buy itself a WARN).
 #    exit 3 = JS-gated page -> use the BROWSER FALLBACK in the script's docstring. Never
 #    conclude "no schedule published" from a shell page; that is how guessed times are born.
 # 3. platform evidence: poll ANN (plain HTTP, no key) and the licensor's own catalog
@@ -84,22 +112,28 @@ Ranma 1/2 Season 3|2026-10-03|03:00|ET|Netflix|slate|209872|slate|anilist||12
 **never** make these recur). Date/time = the Japanese slot for `JST`, the US instant for `ET`.
 Accept `24:30`/`25:45` Japanese late-night notation as-is.
 
-**`CONF` is derived, never typed.** Column 7-8 are the transcription axis, 9-11 the
-corroboration axis:
+**`CONF` is derived, never typed — and it is *advisory* everywhere but the gate.** Columns 7-8 are
+the transcription axis, 9-11 the corroboration axis:
 
 | Col | Field | Values | Rule |
 |---|---|---|---|
 | 7 | `ANILIST_ID` | digits | mandatory — no id, no verification |
-| 8 | `SRC` | `sched` `next` `slate` `guess` | `high` requires `sched` |
+| 8 | `SRC` | `sched` `next` `slate` `guess` | `high` requires `sched`; **`guess` always FAILs** |
 | 9 | `JPSLOT` | `official` `anilist` `guess` | `high` requires one of the first two |
-| 10 | `OFFICIAL_SLOT` | `"Wed 23:45"` | what the site's 放送情報 actually says |
+| 10 | `OFFICIAL_SLOT` | `"Wed 23:45 @rayearth-anime.com"` | paste `official_slots.py`'s `col10 ->` line verbatim; **the `@host` is the proof** |
 | 11 | `EPS` | AniList **row count**, not `Media.episodes` | drives `--recur-until` |
+
+`et_schedule.sh` reads column 6 and ignores it; `add_verified.sh` never sees it. Write "park the
+low-confidence rows" as an instruction to *you*, not as a property of the pipeline.
 
 A row that agrees with AniList has only proven *I copied it correctly* — AniList's own
 pre-air values have been wrong (12 h off, silently corrected after broadcast). Where the
-official site and AniList disagree, the gate reports WARN and the site wins, but the row
-must be re-pulled after the show has actually aired. `EPS` larger than AniList's row count
-is normal for `連続2クール` shows (2 cours, ~24 eps): the second cour simply isn't entered yet.
+official site and AniList genuinely disagree **on the clock**, the gate reports WARN and the
+site wins, but the row must be re-pulled after the show has actually aired. That downgrade
+requires `SRC=sched` **and** an `@host` in col 10 — i.e. evidence someone did not type. A
+weekday conflict is never downgraded: both sources state the day, and a wrong day moves the
+event by six days, not minutes. `EPS` larger than AniList's row count is normal for
+`連続2クール` shows (2 cours, ~24 eps): the second cour simply isn't entered yet.
 
 ### Gate — run before generating any schedule
 
@@ -113,6 +147,11 @@ Exit 1 = **do not write the calendar.** Checks: `WEEKDAY`, `CLOCK`, `START` on t
 lattice, `EPS` vs row count, `SRC`/`JPSLOT` corroboration, and a `DUPCLOCK` advisory that
 only fires when a co-timed row also failed (two shows sharing a slot is normal). Every
 failure message names the command that would resolve it — read it instead of guessing.
+
+The gate is adversarial by design: a claim must cost something to produce. It used to honour
+a hand-typed `OFFICIAL_SLOT`, so writing down a made-up slot turned a `FAIL` into a `WARN`
+while *omitting* the claim left the same row `FAIL` — the check paid out for lying, and also
+"downgraded" rows that agreed with AniList, where there was no conflict to resolve at all.
 
 Generate the ET schedule:
 

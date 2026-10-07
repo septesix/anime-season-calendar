@@ -107,14 +107,14 @@ used to be a free-text field, which is how a guessed time got recorded as high c
 | Script | What it does |
 |---|---|
 | `official_slots.py` | Parses 放送情報 from a show's own site. Kanji clocks (`よる11時45分`, `深夜1:03`, `あさ5時`), 24/25/26-hour weekday roll, sub-path probing (`/onair/` …). Lists every slot tagged `tv\|stream\|repeat`; **picks nothing**. Exit 3 = JS-gated → browser fallback. |
-| `probe_schedules.js` | Bulk AniList `airingSchedules` for a whole season, run in-browser. One row per episode: weekday, clock, date, count. |
+| `probe_schedules.js` | **Template**, not runnable as-is — it contains `__IDS__`/`__FROM__`/`__TO__` placeholders. `verify_provenance.sh prepare` substitutes them and writes `/tmp/an/probe.js`, which you run in an `anilist.co` tab. Bulk `airingSchedules` for a whole season (paginates: AniList caps `perPage` at 50). |
 | `verify_provenance.sh` | The gate. `prepare` writes the probe script, `check` diffs the data file against live AniList rows. |
 | `cr_calendar.py` | Crunchyroll's *published* ET times (via the `?filter=premium` SSR path). `--diff YYYY-MM-DD` compares them against your calendar. |
 | `et_schedule.sh` | Converts `season.txt` into an ET schedule table. Exact minutes, `EPS`-driven `--recur-until`. |
 | `dst_legs.py` | Emits the 2–3 DST legs a single weekly series must be split into. |
 | `add_verified.sh` | Writes to the calendar and **re-reads** to prove each event landed. Refuses unsplit DST legs. `--dry` supported. |
 | `dst_audit.py` | Audits an existing calendar: every JST-anchored weekly must shift exactly 60 min across a DST boundary. |
-| `_vp_check.py` | Comparison core used by the gate (not run directly). |
+| `_vp_check.py` | The comparator the gate actually runs — `verify_provenance.sh check` shells out to it. Emits per-row `OK`/`WARN`/`FAIL` with the resolving command in the message. |
 
 ---
 

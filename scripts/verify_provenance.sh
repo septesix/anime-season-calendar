@@ -2,7 +2,9 @@
 # verify_provenance.sh — gate between building season.txt and writing the calendar.
 #   prepare <season.txt>   -> emits /tmp/an/probe.js, run that in an anilist.co tab
 #   check   <season.txt> <actual.tsv> -> verdicts; exit 1 unless every row is OK
-# season.txt: TITLE|YYYY-MM-DD|HH:MM|MODE|SERVICE|CONF|ANILIST_ID|SRC
+# season.txt: TITLE|YYYY-MM-DD|HH:MM|MODE|SERVICE|CONF|ANILIST_ID|SRC|JPSLOT|OFFICIAL_SLOT|EPS
+#   (cols 7-11 optional to this script; the gate only enforces 7 = ANILIST_ID, but
+#    _vp_check.py reads 9/10/11 for the corroboration axis - see SKILL.md Phase 2)
 set -u
 MODE="${1:?usage: verify_provenance.sh prepare|check ...}"
 IN="${2:?season.txt}"

@@ -45,7 +45,13 @@ ORD = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"]
 #   よる11時45分 = 23:45   深夜1時03分 = 25:03 (next day)   あさ5時00分 = 05:00
 RX_KANJI = re.compile(
     r"(毎週\s*)?([日月火水木金土])\s*曜(?:日)?\s*(よる|午後|深夜|あさ|午前|朝)?\s*(\d{1,2})\s*時\s*(\d{1,2})?\s*分")
-RX_DIGIT = re.compile(r"毎週\s*([日月火水木金土])\s*曜[^0-9]{0,12}?(\d{1,2})\s*[:：]\s*(\d{2})")
+RX_DIGIT = re.compile(r"(毎週\s*)?([日月火水木金土])\s*曜(?:日)?\s*(よる|午後|深夜|あさ|午前|朝)?[^0-9]{0,10}?(\d{1,2})\s*[:：]\s*(\d{2})")
+
+def adj(pre, h):
+    """Period prefix -> 24h. 深夜 N時 = 24+N (next day); よる/午後 N = 12+N."""
+    if pre in ("よる", "午後") and h < 12: h += 12
+    if pre == "深夜": h += 24
+    return h
 NETS = ["テレビ朝日","フジテレビ","日本テレビ","TBS","MBS","RKB","メ～テレ","チューリップ","ABEMA","アニメタイムズ",
         "TOKYO MX","tvk","テレビ神奈川","KBS京都","テレビ愛知","BS日テレ","BS-TBS","BS11","BS12","BS富士","BS朝日",
         "BSフジ","AT-X","アニマックス","J:COM","dアニメストア","AnimeFesta","FOD","U-NEXT","TELASA","Lemino","TVer"]
@@ -71,11 +77,12 @@ def slots(t):
     out = []
     for m in RX_KANJI.finditer(t):
         wd, pre, h, mi = m.group(2), m.group(3), int(m.group(4)), int(m.group(5) or 0)
-        if pre in ("よる", "午後") and h < 12: h += 12
-        if pre == "深夜": h += 24           # 深夜1時 = 25:00 = next calendar day
-        out.append((ORD.index(WD[wd]), h, mi, m.start()))
+        out.append((ORD.index(WD[wd]), adj(pre, h), mi, m.start()))
     for m in RX_DIGIT.finditer(t):
-        out.append((ORD.index(WD[m.group(1)]), int(m.group(2)), int(m.group(3)), m.start()))
+        # group 3 is the period prefix: よる11:45 is 23:45, not 11:45. Missing it was a
+        # silent 12-hour error on every colon-form site that prefixes with よる/午後.
+        wd, pre, h, mi = m.group(2), m.group(3), int(m.group(4)), int(m.group(5))
+        out.append((ORD.index(WD[wd]), adj(pre, h), mi, m.start()))
     seen, res = set(), []
     for d, h, mi, pos in sorted(out, key=lambda x: (x[3],)):
         roll = 0
@@ -145,6 +152,11 @@ def main():
                 verdict = "MATCH" if sd == 0 else ("AGREES %+d min" % sd if abs(sd) <= 90 else "DIFFERS")
                 print("    vs expected %s -> %s   (closest site slot %s %02d:%02d)"
                       % (exp, verdict, ORD[d], h, mi))
+                # Paste-ready season.txt column 10. The "@host" is what makes the claim
+                # checkable: _vp_check.py only honours JPSLOT=official when this line was
+                # copied here, so a hand-typed slot cannot buy a downgrade.
+                host = url.split("//")[-1].split("/")[0].replace("www.", "")
+                print("    col10 -> %s %02d:%02d @ %s" % (ORD[d], h, mi, host))
     sys.exit(0 if found else 3)
 
 main()

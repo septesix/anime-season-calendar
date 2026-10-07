@@ -8,10 +8,20 @@
 # boundary must be emitted as 2-3 legs (scripts/dst_legs.py) - add_verified.sh now refuses the
 # single-leg form on purpose, so a dry run of this file reporting FAIL(DST-leg) is correct.
 #
-# A row that matches AniList only proves you transcribed it. The Apothecary row below agrees
-# with both sources; the Rayearth row deliberately disagrees by 1 minute (AniList says 23:46,
-# the show's own site says 23:45) and is reported WARN, not OK.
-The Apothecary Diaries S3|2026-10-02|23:00|JST|Crunchyroll|high|195516|sched|official|Fri 23:00|12
-Magic Knight Rayearth|2026-10-07|23:45|JST|Crunchyroll|high|178868|sched|official|Wed 23:45|24
-Blue Box Season 2|2026-10-04|16:30|JST|Netflix|high|189123|sched|official|Sun 16:30|12
-Cyberpunk: Edgerunners 2|2026-10-20|00:00|ET_SINGLE|Netflix|slate|195539|slate|anilist||1
+# Every value below was pulled live: AniList clocks from airingSchedules, slots from
+# official_slots.py. The four rows show the four evidence tiers, and col 10 is filled ONLY
+# where the site actually parsed - "official" is a claim about a scrape, not a mood.
+#
+# Rayearth   - real conflict: AniList stores Wed 23:46, the show's own 放送情報 says
+#              Wed 23:45. Pasted from `col10 ->`, so the gate honours it and reports WARN.
+# Apothecary - the official page is JS-gated (0 slots over HTTP) so there is no site claim
+#              to make. JPSLOT=anilist caps CONF at medium. That is the correct answer, not
+#              a failure: exit 3 from official_slots.py means "render it in a browser", never
+#              "assume AniList is official".
+# Blue Box   - Netflix original: no JP broadcast slot exists to cite, so col 10 is empty by
+#              design. AniList agrees with the Netflix listing; JPSLOT=anilist.
+# Cyberpunk  - one-off binge. No weekly grid, so no EPS lattice to check.
+The Apothecary Diaries S3|2026-10-02|23:00|JST|Crunchyroll|medium|195516|sched|anilist||12
+Magic Knight Rayearth|2026-10-07|23:45|JST|Crunchyroll|high|178868|sched|official|Wed 23:45 @rayearth-anime.com|24
+Blue Box Season 2|2026-10-04|16:30|JST|Netflix|high|189123|sched|anilist||12
+Cyberpunk: Edgerunners 2|2026-10-20|00:00|ET_SINGLE|Netflix|slate|195539|slate|guess||1

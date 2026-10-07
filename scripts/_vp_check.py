@@ -14,7 +14,7 @@ fails = 0; rows = 0; seen = {}; bad = set()
 print("%-52s %-4s %-6s %-11s %-5s %s" % ("TITLE","ID","verdict","declared","truth","detail"))
 for line in open(season):
     line = line.rstrip("\n")
-    if not line.strip() or line.startswith("TITLE"): continue
+    if not line.strip() or line.startswith("TITLE") or line.startswith("#"): continue
     f = line.split("|")
     if len(f) < 7: print("!! malformed row (needs >=7 cols): " + line[:60]); fails += 1; continue
     title, d, clk, mode, svc, conf, aid = f[0], f[1], f[2], f[3], f[4], f[5], f[6]
@@ -54,18 +54,37 @@ for line in open(season):
     jps = (f[8].strip().lower() if len(f) > 8 else "")
     off = (f[9].strip() if len(f) > 9 else "")
     epsdecl = (f[10].strip() if len(f) > 10 else "")
-    if v == "FAIL" and jps == "official" and off:
-        try:
-            owd, oclk = off.split()
-        except ValueError:
-            owd, oclk = "", ""
-        if owd == dw and oclk == clk:
-            # The row follows the show's own site and conflicts with AniList. That is the
-            # documented case, not an error: official sites publish 放送情報 months ahead,
-            # AniList fills placeholder rows first and fixes them after air.
-            v, det = "WARN", "row = OFFICIAL SITE %s, AniList says %s %s -> re-pull after premiere" % (off, t["wd"], t["clock"])
+    # A bare "Wed 23:45" is a claim someone typed; official_slots.py emits the "@host"
+    # form, so a host present == the string was pasted from a scrape. Requiring it is the
+    # whole point: without it, writing down a made-up slot UPGRADES a wrong row from FAIL
+    # to WARN, i.e. the escape hatch paid out for lying. (The pre-fix comparator did
+    # exactly that, and also downgraded rows that agreed with AniList, where there is no
+    # conflict to resolve.)
+    if " " in off.strip():
+        off, offhost = off.strip().rsplit(" ", 1)
+    elif "@" in off:
+        off, offhost = off.split("@", 1)
+    else:
+        off, offhost = off.strip(), ""
+    conflict = bool(t["clock"]) and t["clock"] != clk
+    if v == "FAIL" and conflict and jps == "official":
+        if det.startswith("weekday"):
+            # A site-cited weekday cannot launder a day typo: every source states the day,
+            # and a wrong DAY moves the event by six days, not by minutes.
+            det += "  [site slot %s cannot overturn a weekday conflict - re-check the day]" % (off or "?")
+        elif offhost and off and clk == off.split()[-1]:
+            v, det = "WARN", "site (%s) says %s, AniList says %s %s -> official site wins; re-pull after premiere" % (
+                offhost, off, t["wd"], t["clock"])
+        elif off and not offhost:
+            det += "  [JPSLOT=official but OFFICIAL_SLOT has no @host -> unverifiable claim]"
     if conf == "high" and (len(f) < 8 or f[7] != "sched"):
         v, det = "FAIL", (det + "; " if det else "") + "conf=high without SRC=sched"
+    # SRC=guess means the date/clock was invented, not read from anything. It used to pass
+    # silently as long as CONF was honest, but CONF goes nowhere downstream: et_schedule.sh
+    # reads column 6 into a variable it never uses and add_verified.sh never sees it. So the
+    # only place a guessed row can be stopped is here.
+    if len(f) > 7 and f[7].strip().lower() == "guess":
+        v, det = "FAIL", (det + "; " if det else "") + "SRC=guess -> nothing was read; run official_slots.py (site) or probe_schedules (AniList)"
     if conf == "high" and jps not in ("official", "anilist"):
         v, det = "FAIL", (det + "; " if det else "") + \
             ("conf=high with JPSLOT=%r -> run scripts/official_slots.py <official-site-url> "
