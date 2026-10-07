@@ -1,5 +1,13 @@
-# title | first-air date | clock | mode | US service | confidence
-# modes: JST (JP slot) | ET (already US) | JST_SINGLE | ET_SINGLE (binge/one-off)
-The Apothecary Diaries S3|2026-10-02|23:00|JST|Crunchyroll|high
-Blue Box Season 2|2026-10-04|16:30|JST|Netflix|low
-Cyberpunk: Edgerunners 2|2026-10-20|00:00|ET_SINGLE|Netflix|high
+# season.txt — 11 columns. Cols 9-11 are what stop CONF from being a claim about nothing.
+# TITLE|first-air date|JP clock|MODE|US service|CONF|ANILIST_ID|SRC|JPSLOT|OFFICIAL_SLOT|EPS
+# MODE: JST (JP slot) | ET (already US) | JST_SINGLE | ET_SINGLE (binge/one-off)
+# SRC:  sched|next|slate|guess      JPSLOT: official|anilist|guess     EPS: airingSchedule ROW COUNT
+# CONF is derived by the gate, never trusted from this file.
+#
+# A row that matches AniList only proves you transcribed it. The Apothecary row below agrees
+# with both sources; the Rayearth row deliberately disagrees by 1 minute (AniList says 23:46,
+# the show's own site says 23:45) and is reported WARN, not OK.
+The Apothecary Diaries S3|2026-10-02|23:00|JST|Crunchyroll|high|195516|sched|official|Fri 23:00|12
+Magic Knight Rayearth|2026-10-07|23:45|JST|Crunchyroll|high|178868|sched|official|Wed 23:45|24
+Blue Box Season 2|2026-10-04|16:30|JST|Netflix|high|189123|sched|official|Sun 16:30|12
+Cyberpunk: Edgerunners 2|2026-10-20|00:00|ET_SINGLE|Netflix|slate|195539|slate|anilist||1
