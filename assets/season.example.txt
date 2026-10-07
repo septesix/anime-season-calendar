@@ -4,6 +4,10 @@
 # SRC:  sched|next|slate|guess      JPSLOT: official|anilist|guess     EPS: airingSchedule ROW COUNT
 # CONF is derived by the gate, never trusted from this file.
 #
+# NOTE: one row per show here is a FORMAT demo only. A weekly show whose span crosses a US DST
+# boundary must be emitted as 2-3 legs (scripts/dst_legs.py) - add_verified.sh now refuses the
+# single-leg form on purpose, so a dry run of this file reporting FAIL(DST-leg) is correct.
+#
 # A row that matches AniList only proves you transcribed it. The Apothecary row below agrees
 # with both sources; the Rayearth row deliberately disagrees by 1 minute (AniList says 23:46,
 # the show's own site says 23:45) and is reported WARN, not OK.
