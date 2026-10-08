@@ -59,6 +59,16 @@ minis-scheduled create --label season-sweep --time 10:00 --repeat custom --days 
   --prompt "Read /var/minis/shared/anime-calendar/sweep.prompt and run it. Report only: do NOT write, delete, or change reminders in this run."
 ```
 
+## 6. Audit the schedulers themselves
+
+```sh
+sh /var/minis/skills/anime-season-calendar/scripts/verify_prompt_delivery.sh
+```
+
+Exit 1 means a job's stored prompt is at or past the 200-character truncation limit, or it
+points at a file that no longer exists. Run it whether or not anything was reported above -
+a job that has been silently truncated for a week still reports `state: pending`.
+
 ---
 Live copy: `/var/minis/shared/anime-calendar/sweep.prompt` (the path the job
 points at). Edit that one; this is the version-controlled reference.

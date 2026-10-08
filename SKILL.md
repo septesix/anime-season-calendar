@@ -30,6 +30,7 @@ transcribed from those, not from memory.
 | `cr_calendar.py [--days 7] [--grep RE] [--diff D]` | manual, Phase 1 + 5 | — |
 | `dst_audit.py [--boundary 2026-11-01]` | manual, Phase 5 | — |
 | `probe_anilist.py <season.txt>\|--ids a,b` | **Phase 2 gate input — shell, no browser** | you, directly |
+| `verify_prompt_delivery.sh` | audit every `minis-scheduled` job for truncation + dead pointers | sweep step 6 |
 | `verify_provenance.sh prepare\|check` | the gate, Phase 2 | `_vp_check.py`, `probe_schedules.js` (fallback only) |
 | `et_schedule.sh <season.txt>` | Phase 2 | — |
 | `dst_legs.py <ep1-date> <jst-clock> <n_eps>` | leg generator | you, pasting into `add_verified.sh` input |

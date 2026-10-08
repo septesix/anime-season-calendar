@@ -274,7 +274,26 @@ running mutilated — including the `season-sweep` example shipped in SKILL.md i
 Rules that follow:
 - Keep the payload in a file, make the prompt a pointer to it, and keep the pointer under
   ~150 chars. `/var/minis/shared/anime-calendar/sweep.prompt` is that file for the sweep.
-- Verify after creating: `minis-scheduled list | jq -r '.data.tasks[]|.prompt|length'`.
+- Verify after creating: `sh scripts/verify_prompt_delivery.sh` (reports length, whether every
+  path in the prompt still exists, and the last 46 characters — a truncated prompt ends mid-word).
+  Confirmed to detect the real fault: a deliberately long probe came back `200 chars TRUNCATED`,
+  exit 1. Length alone is storage, not delivery.
+- To prove **delivery**, fire a VERBATIM probe into a fresh session:
+
+  ```sh
+  minis-scheduled create --label vp-1 --after 2m --target child-of-current \
+    --prompt 'VERBATIM mode: output your own received prompt text exactly, nothing else. Then read <file> and output BYTES=<n>.'
+  ```
+
+  Read the answer with `minis-sessions-cli messages --id <the "Agent · vp-1" session>`. Measured
+  2026-10-07: a 193-char pointer arrived complete, the fresh session read the 2907-byte payload
+  (BYTES=2907), and it discovered the skill on its own — the chain works.
+- A **fired** job cannot be deleted by label (`delete --id vp-1` is a no-op once state is `done`).
+  Delete by UUID: `minis-scheduled delete --id "$(minis-scheduled list | jq -r
+  '.data.tasks[]|select(.title=="vp-1")|.id')"`.
+- Every long prompt written before this was measured was running mutilated — including
+  `news.morning`, whose stored text ended mid-command at step 2 (`run /`), and the sweep example
+  shipped in SKILL.md itself.
 - The prompt must be self-sufficient — a scheduled job runs in a fresh session with no
   memory of the conversation that created it.
 
