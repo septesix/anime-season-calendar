@@ -1,0 +1,64 @@
+# season-sweep — full instructions for the scheduled re-sweep
+
+Run the `anime-season-calendar` skill. **Report only — do NOT write the calendar, delete
+events, or modify reminders in this run.**
+
+## 1. Enumerate the current season
+
+Use the shell, not a browser: AniList GraphQL answers plain POSTs from iSH.
+
+```sh
+python3 - <<'PY'
+import urllib.request as u, json
+Q='query($s:MediaSeason,$y:Int,$p:Int){Page(page:$p,perPage:50){media(season:$s,seasonYear:$y,format_in:[TV,TV_SHORT,MOVIE,ONA,SPECIAL]){id title{romaji} format status episodes externalLinks{site url}}}}'
+import datetime; t=datetime.date.today(); s=t.month//3
+s=['WINTER','SPRING','SUMMER','FALL'][min(s,3)] if t.month!=3 else 'WINTER'
+y=t.year if t.month>2 else t.year-1
+for p in range(1,8):
+    b=json.dumps({'query':Q,'variables':{'s':s,'y':y,'p':p}}).encode()
+    r=u.Request('https://graphql.anilist.co',data=b,headers={'User-Agent':'m','Content-Type':'application/json','Accept':'application/json'})
+    m=json.load(u.urlopen(r,timeout=45))['data']['Page']['media']
+    for x in m: print(x['id'],'|',x['format'],'|',x['status'],'|',x['title']['romaji'])
+    if len(m)<50: break
+PY
+```
+
+Do **not** trust `pageInfo.total` on a filtered query — it has been observed returning 5000,
+97, then 100 for the same season. Paginate until a page returns < 50 rows.
+
+## 2. Pull JP air times for the whole set
+
+```sh
+python3 /var/minis/skills/anime-season-calendar/scripts/probe_anilist.py --ids <comma,list,from,step1> > /tmp/an/sweep.tsv
+```
+
+## 3. Diff against reality
+
+- Existing titles: `apple-calendar list --calendar "Anime Calendar" --start <today-7> --end <today+7>`
+  (query in **≤7-day windows** — a month-sized query overflows a 100-event cap and reports nothing).
+- Watch-list: `/var/minis/shared/anime-calendar/watchlist.tsv`
+- New US licenses: `animenewsnetwork.com/all/rss.xml` → grep `licens|stream|simulcast|debut`.
+
+## 4. Report
+
+1. Season titles that have a US streamer but are **absent** from the calendar.
+2. Watch-list items that now have a license (with the source that says so).
+3. Any show whose AniList weekday / clock / row count **changed** since it premiered — this is
+   the re-pull rule: AniList ships placeholder values before a show airs and corrects them after.
+
+Never conclude "unlicensed" from a missing `externalLinks` entry. An unrecognised `site` value
+is a finding to verify, not noise (see `OceanVeil` in references/pitfalls.md).
+
+## 5. Re-arm yourself
+
+The scheduler truncates prompts to 200 characters **silently**, which is why this file exists.
+If `minis-scheduled list` no longer shows `season-sweep` in `pending` state, recreate it:
+
+```sh
+minis-scheduled create --label season-sweep --time 10:00 --repeat custom --days sun --target new \
+  --prompt "Read /var/minis/shared/anime-calendar/sweep.prompt and run it. Report only: do NOT write, delete, or change reminders in this run."
+```
+
+---
+Live copy: `/var/minis/shared/anime-calendar/sweep.prompt` (the path the job
+points at). Edit that one; this is the version-controlled reference.

@@ -3,18 +3,32 @@
 AniList is the workhorse: season lineups, episode counts, and per-episode airing
 timestamps. It replaces guesswork with facts.
 
-## Hard constraint: same-origin
+## Two routes, and which one to use
 
-`fetch()` to `graphql.anilist.co` only works while a tab is on `anilist.co`.
-From any other origin the CORS preflight fails with an opaque `Load failed`.
+**Prefer the shell.** `scripts/probe_anilist.py` POSTs from iSH and produces the same
+7-column `actual.tsv` as the JS probe, so the gate runs unattended. Measured 2026-10-07:
+97 season titles → 1067 airing rows in 7.8 s, 0 failures. Plain curl-style POST works;
+`GET` on that endpoint is 404 ("Use POST request"), never 403.
+
+**In the browser, same-origin is mandatory.** `fetch()` to `graphql.anilist.co` from a tab
+on any other origin fails the CORS preflight with an opaque `Load failed`.
 
 1. `browser_use navigate` → `https://anilist.co/search/anime?season=FALL&seasonYear=2026`
 2. THEN `browser_use execute_js` with the fetch.
+
+**A 403 from the shell is intermittent, not a block.** The old rule "the shell always gets
+403, browser only" was repeated in five files from 2026-10-01 to 2026-10-07. It is not
+UA-dependent (4 user agents all passed) and not query-shape-dependent (a 100-id
+`mediaId_in` passed). Retry with backoff; only fall back to the browser if retries fail.
 
 ## Rate limit
 
 ~60 requests/min. Batch with a paginated season query; never loop a `search`
 per title. Sleep 400-900 ms between page fetches.
+
+**Do not trust `pageInfo.total` on a filtered season query** — measured on Fall 2026 it
+reported 5000, then 97, then 100 across three pages of the same query. Paginate until a
+page returns fewer than `perPage` rows; `total` on a filtered query is unreliable.
 
 ## 1. Whole season, popularity-ordered
 

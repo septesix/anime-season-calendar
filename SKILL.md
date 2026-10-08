@@ -29,7 +29,8 @@ transcribed from those, not from memory.
 | `official_slots.py <url>… [--expected "Wed 23:45"]` | manual, Phase 1 | — |
 | `cr_calendar.py [--days 7] [--grep RE] [--diff D]` | manual, Phase 1 + 5 | — |
 | `dst_audit.py [--boundary 2026-11-01]` | manual, Phase 5 | — |
-| `verify_provenance.sh prepare\|check` | the gate, Phase 2 | `_vp_check.py`, `probe_schedules.js` |
+| `probe_anilist.py <season.txt>\|--ids a,b` | **Phase 2 gate input — shell, no browser** | you, directly |
+| `verify_provenance.sh prepare\|check` | the gate, Phase 2 | `_vp_check.py`, `probe_schedules.js` (fallback only) |
 | `et_schedule.sh <season.txt>` | Phase 2 | — |
 | `dst_legs.py <ep1-date> <jst-clock> <n_eps>` | leg generator | you, pasting into `add_verified.sh` input |
 | `add_verified.sh <sched.tsv> [calendar] [log] [--dry]` | Phase 4 | — |
@@ -59,8 +60,9 @@ full of round-number guesses.
 | US drop **minute** | Crunchyroll's own calendar (≤1 day); HIDIVE posts | hours–days | derivation is right at the hour, wrong by 0–45 min |
 
 ```sh
-# 1. enumerate (needs same-origin -> browser_use execute_js in an anilist.co tab; the shell
-#    gets HTTP 403 from graphql.anilist.co. Query + pitfalls: references/anilist-cookbook.md)
+# 1. enumerate + JP anchor truth: scripts/probe_anilist.py works from the shell (measured:
+#    97 titles / 1067 rows / 0 failures). Browser route only if it 403s through retries -
+#    same-origin needed in-tab. Query shapes: references/anilist-cookbook.md
 # 2. JP anchor, per title, from its own site. URL is already in externalLinks site="Official Site":
 python3 scripts/official_slots.py https://rayearth-anime.com/ --expected "Wed 23:45"
 #    -> prints EVERY 放送/配信/リピート slot tagged, picks nothing. Choosing is a judgment:
@@ -90,8 +92,11 @@ was already correct, and 14 Fall-2026 titles were still lost by acting as if it 
 the cour starts" existed in prose here and went unexecuted for 6 days:
 
 ```sh
-minis-scheduled create --label season-sweep --time 10:00 --repeat custom --days sun \
-  --target new --prompt "Re-pull season:<CURRENT> from AniList, diff against the Anime Calendar and watchlist.tsv, report new licenses + shows whose AniList slot changed since premiere. Report only; do not write the calendar."
+# --prompt is truncated to 200 characters, SILENTLY. Keep the payload in a file and make
+# the prompt a pointer to it; verify with `list` that .prompt length is under 200.
+minis-scheduled create --label season-sweep --time 10:00 --repeat custom --days sun --target new \
+  --prompt "Read /var/minis/shared/anime-calendar/sweep.prompt and run it. Report only: do NOT write, delete, or change reminders in this run."
+# 130 chars. Full instructions, incl. the AniList shell query, live in that file.
 ```
 
 Tag each title with a confidence level. Platform drop-time rules: `references/platform-rules.md`.
@@ -138,10 +143,16 @@ event by six days, not minutes. `EPS` larger than AniList's row count is normal 
 ### Gate — run before generating any schedule
 
 ```sh
-sh scripts/verify_provenance.sh prepare /var/minis/workspace/an/season.txt   # writes probe.js
-#   -> run probe.js in an anilist.co tab (browser_use execute_js), save output to .../actual.tsv
-sh scripts/verify_provenance.sh check  <season.txt> <actual.tsv>
+python3 scripts/probe_anilist.py <season.txt> > /tmp/an/actual.tsv      # the whole gate, unattended
+sh scripts/verify_provenance.sh check <season.txt> /tmp/an/actual.tsv
+# fallback, only if probe_anilist.py 403s after retries:
+sh scripts/verify_provenance.sh prepare <season.txt>                    # writes /tmp/an/probe.js
+#   -> run probe.js in an anilist.co tab (browser_use execute_js), save output to actual.tsv
 ```
+
+The shell route matters for more than convenience: a gate with a manual paste step in it is
+a gate that gets skipped, and every silent-wrong entry in the calendar came from a skipped
+step. If the first line runs, run it.
 
 Exit 1 = **do not write the calendar.** Checks: `WEEKDAY`, `CLOCK`, `START` on the true
 lattice, `EPS` vs row count, `SRC`/`JPSLOT` corroboration, and a `DUPCLOCK` advisory that

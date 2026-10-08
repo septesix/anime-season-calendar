@@ -1,5 +1,7 @@
 // probe_schedules.js — GROUND TRUTH from AniList's OWN per-title schedules.
-// Run inside an anilist.co tab via browser_use execute_js. Generate it with:
+// FALLBACK ROUTE ONLY: prefer scripts/probe_anilist.py, which needs no browser.
+// Use this when probe_anilist.py 403s after its retries. Run inside an anilist.co tab
+// via browser_use execute_js (same-origin is mandatory in-tab). Generate it with:
 //   sh scripts/verify_provenance.sh prepare /tmp/an/season.txt
 // which substitutes IDS / EPOCH_FROM / EPOCH_TO below.
 // Output: one line per id  ->  id \t n_eps \t weekday \t HH:MM \t first_date \t last_date

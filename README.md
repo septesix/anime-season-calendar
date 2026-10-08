@@ -66,11 +66,14 @@ which jq >/dev/null 2>&1 || apk add jq
 ```
 
 Also required: an iOS device running Minis with the `apple-calendar` CLI (a local calendar named
-`Anime Calendar`) and the `browser_use` tool.
+`Anime Calendar`). `browser_use` is needed only for the fallback paths — a JS-gated official site,
+or an AniList query after `probe_anilist.py` has retried and still failed.
 
-**Why a browser for API calls:** `graphql.anilist.co` returns HTTP 403 from the iSH shell (Cloudflare
-fingerprinting), so AniList queries must run same-origin in an `anilist.co` tab via
-`browser_use execute_js`. Plain HTTP works fine for ANN, Crunchyroll, and official sites.
+**Why AniList usually needs no browser:** queries go out as plain POSTs from the shell
+(`probe_anilist.py`). A claim that `graphql.anilist.co` 403s iSH got repeated across five files
+for six days before anyone measured it — it does not, and a 403 there turns out to be transient
+rather than UA- or shape-dependent. The in-browser route remains, but only as a fallback:
+`fetch()` from a tab fails CORS unless the tab is already on `anilist.co`.
 
 ---
 
@@ -83,12 +86,14 @@ season.txt ──► verify_provenance.sh ──► et_schedule.sh ──► add
 ```
 
 ```sh
-sh scripts/verify_provenance.sh prepare /var/minis/workspace/an/season.txt   # writes probe.js
-#   → run probe.js in an anilist.co tab, save output to actual.tsv
-sh scripts/verify_provenance.sh check  season.txt actual.tsv                # exit 1 = DO NOT WRITE
+python3 scripts/probe_anilist.py  season.txt > actual.tsv                  # shell, no browser
+sh scripts/verify_provenance.sh check season.txt actual.tsv                # exit 1 = DO NOT WRITE
 sh scripts/et_schedule.sh    season.txt > schedule.tsv
 sh scripts/add_verified.sh   schedule.tsv "Anime Calendar"
 ```
+
+Every step is a plain command, which matters: an earlier version of the gate required pasting a
+script into a browser tab, and a gate with a manual step in it is a gate that gets skipped.
 
 `season.txt` is 11 columns; columns 7–11 exist purely to make confidence *checkable* rather than
 asserted:
@@ -97,8 +102,10 @@ asserted:
 TITLE|YYYY-MM-DD|HH:MM|MODE|SERVICE|CONF|ANILIST_ID|SRC|JPSLOT|OFFICIAL_SLOT|EPS
 ```
 
-`CONF=high` requires `SRC=sched` **and** `JPSLOT` corroborated by the official site or AniList. It
-used to be a free-text field, which is how a guessed time got recorded as high confidence.
+`CONF=high` requires `SRC=sched` plus `JPSLOT` of `official` or `anilist`, and `SRC=guess` fails
+outright regardless of `CONF`. Column 6 itself is *advisory* — nothing downstream reads it, so the
+gate is the only enforcement point. It used to be free text, which is how a guessed time got
+recorded as high confidence.
 
 ---
 
@@ -107,7 +114,8 @@ used to be a free-text field, which is how a guessed time got recorded as high c
 | Script | What it does |
 |---|---|
 | `official_slots.py` | Parses 放送情報 from a show's own site. Kanji clocks (`よる11時45分`, `深夜1:03`, `あさ5時`), 24/25/26-hour weekday roll, sub-path probing (`/onair/` …). Lists every slot tagged `tv\|stream\|repeat`; **picks nothing**. Exit 3 = JS-gated → browser fallback. |
-| `probe_schedules.js` | **Template**, not runnable as-is — it contains `__IDS__`/`__FROM__`/`__TO__` placeholders. `verify_provenance.sh prepare` substitutes them and writes `/tmp/an/probe.js`, which you run in an `anilist.co` tab. Bulk `airingSchedules` for a whole season (paginates: AniList caps `perPage` at 50). |
+| `probe_anilist.py <season.txt>` | **The gate's input, from the shell — no browser.** Emits the same 7-column `actual.tsv` as the JS probe; retries transient 403/429 with backoff. |
+| `probe_schedules.js` | **Fallback template**, not runnable as-is — contains `__IDS__`/`__FROM__`/`__TO__` placeholders. `verify_provenance.sh prepare` substitutes them and writes `/tmp/an/probe.js` for an `anilist.co` tab (same-origin required in-browser). Bulk `airingSchedules` (paginates: `perPage` caps at 50). |
 | `verify_provenance.sh` | The gate. `prepare` writes the probe script, `check` diffs the data file against live AniList rows. |
 | `cr_calendar.py` | Crunchyroll's *published* ET times (via the `?filter=premium` SSR path). `--diff YYYY-MM-DD` compares them against your calendar. |
 | `et_schedule.sh` | Converts `season.txt` into an ET schedule table. Exact minutes, `EPS`-driven `--recur-until`. |

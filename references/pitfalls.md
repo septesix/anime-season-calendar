@@ -41,8 +41,10 @@ Do not re-derive these. Each cost a debugging cycle.
 
 ## Research sources
 
-- **AniList GraphQL is same-origin gated.** Cross-origin `fetch` from a
-  non-AniList page fails with "Load failed". Navigate to `anilist.co` first.
+- **AniList GraphQL is same-origin gated *in the browser*.** Cross-origin `fetch` from a
+  non-AniList page fails with "Load failed". Navigate to `anilist.co` first. This is NOT a
+  reason to avoid the shell: `scripts/probe_anilist.py` works from iSH. The old "shell gets
+  403, browser only" rule was wrong for 6 days until measured (see anilist-cookbook.md).
 - **AniList field names:** `episodes` (not `episodeCount`), `externalLinks` (not
   `externalSites`), sort enum `POPULARITY_DESC` (not `POPULARITY_desc`). A bad
   enum returns a 400 that looks like a network error.
@@ -261,3 +263,23 @@ receives it. So a `low` row is written to the calendar exactly like a `high` one
 is the only thing that stops anything, and it now fails on `SRC=guess` regardless of CONF —
 without that, an honest `CONF=low` plus `SRC=guess` was a pass. Do not write prose that
 implies confidence is enforced downstream; say where it is actually checked.
+
+## minis-scheduled truncates --prompt to 200 characters, silently
+
+Measured 2026-10-07: a 400-character prompt is stored as 200. No error, no warning, and
+`list` returns the truncated text, so the job looks healthy right up until it fires and an
+agent acts on half a sentence. Every long prompt written before this was measured was
+running mutilated — including the `season-sweep` example shipped in SKILL.md itself.
+
+Rules that follow:
+- Keep the payload in a file, make the prompt a pointer to it, and keep the pointer under
+  ~150 chars. `/var/minis/shared/anime-calendar/sweep.prompt` is that file for the sweep.
+- Verify after creating: `minis-scheduled list | jq -r '.data.tasks[]|.prompt|length'`.
+- The prompt must be self-sufficient — a scheduled job runs in a fresh session with no
+  memory of the conversation that created it.
+
+## In-app jobs die with the app process
+
+`season-sweep` and a one-shot follow-up were both `pending` and both gone (`count: 0`) the
+next day, with no fire recorded. The timers live in memory. Anything that must run needs the
+re-arm step inside the job itself, plus an Apple Shortcuts automation for the guaranteed case.
