@@ -15,9 +15,15 @@ there is no timezone metadata anywhere in the document). Future days read
 past - it can never be used to plan a season.
 
 Why verify at all: the skill's derivation rule (ET = JST instant) is correct at the
-HOUR but the published minute varies per show, measured 0 to +45 min above the JST
-instant across 5 shows on 2026-10-06. Deriving gives you a time that is defensibly
-wrong by up to three-quarters of an hour; this gives you the real one.
+HOUR but the published minute varies per show. Measured 2026-10-07 from the ISO fields
+below, offset vs the JST instant runs **-25 to +45 min** (Red River is posted BEFORE its
+JP TV slot, so the low end is negative): never derive the minute, read it here.
+
+The page carries each drop as `<time datetime="2026-10-07T11:15:00-04:00">11:15am</time>`
+- an exact instant with offset. Parse THAT, not the displayed text: v1 stripped all tags
+and rebuilt the date from positional heading matching, and CR labels today as `Today`
+with no date and tomorrow as `Fri 10/9` (weekday FIRST). Neither matched its MM/DD-then-
+weekday regex, so all of today's rows silently inherited yesterday's date.
 
 --diff DATE joins the parsed rows against that day's Apple Calendar events by
 normalized title and reports MATCH / MISMATCH / NOT-IN-CAL.
@@ -28,8 +34,10 @@ socket.setdefaulttimeout(30)
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
       "(KHTML, like Gecko) Version/17.0 Safari/605.1.15")
 URL = "https://www.crunchyroll.com/simulcastcalendar?filter=premium"
-ROW = re.compile(r"(\d{1,2}:\d{2}\s*(?:am|pm))\s+(Premiere\s+)?(?:In Queue|Available|Premiere)?\s*(.{6,90}?)\s+Season\s+\d", re.I)
-DAY = re.compile(r"(?:(Last Week|Today)\s+)?(\d{1,2}/\d{1,2})\s+(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b")
+# One row = an ISO <time> followed (within the same card) by the series <cite>.
+TIME_EL = re.compile(r'datetime="(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}[^"]*)"')
+CITE_EL = re.compile(r'<cite itemprop="name">(.{3,90}?)\s+Season \d', re.S)
+PREM_EL = re.compile(r'class="premiere-flag"')
 
 def norm(s):
     s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
@@ -37,25 +45,39 @@ def norm(s):
     s = re.sub(r"[^a-z0-9]+", " ", s.lower())
     return " ".join(s.split())
 
+ET = datetime.timezone(datetime.timedelta(hours=-4))     # EDT; CR's own offsets are ET
+
 def parse():
     raw = urllib.request.urlopen(urllib.request.Request(URL, headers={"User-Agent": UA})).read()
     body = raw.decode("utf-8", "ignore")
     if len(body) < 20000:
         sys.exit("!! got a %d-byte JS shell, not the SSR page. The ?filter=premium param "
                  "is mandatory - do not conclude CR publishes nothing from this." % len(body))
-    t = re.sub(r"(?s)<(script|style)[^>]*>.*?</\1>|<[^>]+>", " ", body)
-    t = re.sub(r"\s+", " ", html.unescape(t))
-    marks = [(m.start(), m.group(2), m.group(3), m.group(1) or "") for m in DAY.finditer(t)]
+    times = [(m.start(), m.group(1)) for m in TIME_EL.finditer(body)]
     rows = []
-    for m in ROW.finditer(t):
-        tm, prem, title = m.group(1), (m.group(2) or "").strip(), m.group(3).strip()
-        day = wknd = lbl = ""
-        for pos, d, w, tag in marks:
-            if pos < m.start(): day, wknd, lbl = d, w, tag
-        title = re.sub(r"^(In Queue|Premiere|Available)\s+", "", title).strip(" -–")
-        rows.append(dict(time=re.sub(r"\s+", "", tm.lower().replace("am", "am").replace("pm", "pm")),
-                         day=day, wd=wknd, premiere=bool(prem), title=title))
-    return rows
+    for m in CITE_EL.finditer(body):
+        prev = [t for t in times if t[0] < m.start()]
+        if not prev:
+            continue
+        iso = prev[-1][1]
+        try:
+            dt = datetime.datetime.fromisoformat(iso)
+        except ValueError:
+            continue
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=ET)
+        dt = dt.astimezone(ET)                             # some rows carry -07:00
+        # 500-char lookahead: the premiere flag sits between <time> and <cite>, but a
+        # card boundary must not let a PREVIOUS row's flag leak onto this one.
+        gap = body[prev[-1][0]:m.start()]
+        rows.append(dict(dt=dt,
+                         time=dt.strftime("%-I:%M%p").lower(),
+                         date=dt.date().isoformat(),
+                         day=dt.date().strftime("%-m/%-d"),
+                         wd=dt.strftime("%a"),
+                         premiere=bool(PREM_EL.search(gap)),
+                         title=html.unescape(re.sub(r"\s+", " ", m.group(1)).strip(" -–"))))
+    return sorted(rows, key=lambda r: r["dt"])
 
 def cal_on(date, calendar):
     nx = (datetime.date.fromisoformat(date) + datetime.timedelta(days=1)).isoformat()
@@ -70,29 +92,28 @@ def main():
     grep = a[a.index("--grep") + 1] if "--grep" in a else None
     diff = a[a.index("--diff") + 1] if "--diff" in a else None
     cal = a[a.index("--calendar") + 1] if "--calendar" in a else "Anime Calendar"
+    days = int(a[a.index("--days") + 1]) if "--days" in a else None
     rows = [r for r in parse() if (not grep or re.search(grep, r["title"], re.I))]
-    # CR's own clock -> minutes, for comparison with a 24h calendar time
-    def mins(s):
-        h, rest = int(s[:-2]), s[-2:]
-        if rest == "pm" and h != 12: h += 12
-        if rest == "am" and h == 12: h = 0
-        return h * 60
+    if days:                                              # --days N: today +/- N
+        t0 = datetime.date.today()
+        rows = [r for r in rows if abs((datetime.date.fromisoformat(r["date"]) - t0).days) <= days]
     if diff:
         c = cal_on(diff, cal)
-        print("== CR published vs calendar on %s ==" % diff)
+        rows = [r for r in rows if r["date"] == diff]      # THIS day only - v1 compared
+        print("== CR published vs calendar on %s (%d rows) ==" % (diff, len(rows)))   # every day's
         seen = set()
         for r in rows:
             k = norm(r["title"])
             if k in seen: continue
             seen.add(k)
             mine = next((v for kk, v in c.items() if kk[:12] == k[:12] and k[:12]), None)
-            want = mins(r["time"])
+            want = r["dt"].hour * 60 + r["dt"].minute      # was int(s[:-2])*60: minutes dropped
             if mine is None:
-                print("  NOT-IN-CAL  %-52s CR %s" % (r["title"][:52], r["time"]))
+                print("  NOT-IN-CAL  %-52s CR %s %s" % (r["title"][:52], r["time"], r["wd"]))
             else:
                 got = int(mine[:2]) * 60 + int(mine[3:5])
                 d = got - want
-                tag = "MATCH" if abs(d) <= 5 else ("MISMATCH %+d min" % d)
+                tag = "MATCH" if d == 0 else ("MISMATCH %+d min" % d)
                 print("  %-16s %-52s cal %s  CR %s" % (tag, r["title"][:52], mine, r["time"]))
     else:
         cur = ""

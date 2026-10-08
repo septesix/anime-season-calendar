@@ -302,3 +302,18 @@ Rules that follow:
 `season-sweep` and a one-shot follow-up were both `pending` and both gone (`count: 0`) the
 next day, with no fire recorded. The timers live in memory. Anything that must run needs the
 re-arm step inside the job itself, plus an Apple Shortcuts automation for the guaranteed case.
+
+## --recur-until must be the leg's last airdate + 1 day
+
+Setting leg 2 of Rayearth to `--recur-until 2027-03-12` (its own last airdate) produced a run
+that simply stopped at 03-10 and dropped ep24 - silently, with `ok:true` from create. EventKit's
+UNTIL boundary does not reliably include an occurrence beginning on that date.
+
+Second trap on the same rebuild: making leg 1 run to 10/29 **and** leg 2 start 11/04 is correct,
+but a leg whose UNTIL covers the next leg's dates duplicates episodes - each leg is an independent
+master, so boundaries are the only thing separating them.
+
+Verification pitfall found while checking this: an occurrence exactly at the DST fold (10:15 on a
+fall-back Sunday) compares unequal to itself. `astimezone` on the wall clock yields the DST fold
+(`fold=1`, 14:15 UTC) while the true instant is EST (15:15 UTC), so a set diff reported ep24 as both
+MISSING and EXTRA. Compare on **(date, hour, minute, utc_offset)** rather than tz-aware instants.
