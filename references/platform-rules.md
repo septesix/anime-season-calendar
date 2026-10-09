@@ -112,3 +112,17 @@ is what turns a data gap into a silent 14-title hole.
    announcement, and neither is authoritative.
 5. ~~finalweapon.net / mystiqora / "where to watch" aggregators~~ — derived from tier 1-3,
    stale, and the direct cause of a fabricated `Her Friend (Netflix)` entry. Do not cite.
+
+### Third convention: the midnight-PT batch (CR 8:30/9:00/11:00am, offset 0 to a JP *date* boundary)
+
+Several Fall 2026 titles post at a clean PT midnight rather than at the JST instant of any TV
+slot. Confirmed by two independent sources agreeing (CR's published instant == AniList's own
+airingAt converted to ET): Hello, I Am a Witch (Mon 8:30am), FX Fighter Kurumi-chan (Thu 8:30am),
+Sasaki and Peeps (Wed 9:00am). For these the rule is simply `JP calendar date + 1 day, 00:00 PT`.
+
+Corollary, and the reason three entries were an hour late: **when CR and AniList agree with each
+other, trust them over a JST-TV derivation.** Where they disagree, neither is authority yet - the
+disagreement usually means a 配信 slot past the TV slot, and needs the official site or
+cal.syoboi.jp's flagship-station row. Nine Fall 2026 titles sat in that disagreement state on
+2026-10-09 (PSYREN -30, Chojo -45, Laid-Off Mage -30, Sato-san -30, Returner's Magic +75,
+Iceblade +32, Dandivine +90, Firefly Wedding +90, Prince of Tennis II +60).
