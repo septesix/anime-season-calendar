@@ -21,22 +21,34 @@ split at all. `scripts/dst_audit.py` enforces exactly this and does not care how
 True simulcasts unlock essentially when the Japan broadcast finishes, so
 `ET = JST − 13h (EDT) / − 14h (EST after the first Sunday in Nov)`.
 
-**Measured 2026-10-06 against CR's own calendar**, the published time sits **0 to +45 minutes
-after the JST instant, varying by show** — it is not a constant offset, so derivation gives a
-defensibly wrong minute:
+**Measured against CR's own calendar (2026-10-06, corrected 2026-10-09), the offset is not a
+lag at all — CR publishes the JP STREAMING slot, which is usually *after* the TV slot, not at
+it.** A TV slot ending at Fri 24:00 JST unlocks the stream at Sat 00:00 JST, so the US drop lands
+a full hour later than `JST − 13h` of the TV time predicts:
 
-| Show | CR published | JP anchor | Δ vs JST instant |
-|---|---|---|---|
-| Hello, I Am a Witch | Mon 8:30am | AT-X 月曜 21:30 | **0 min** |
-| The Cold Sato-san | Tue 9:30am | 22:00 | +30 |
-| Laid-Off Cheat-Granting Mage | Tue 11:30am | Wed 00:00 | +30 |
-| Super Psychic Policeman Chojo | Tue 10:45am | Fuji 23:00 | +45 |
+| Show | CR published | JP **TV** slot | JP **配信** slot | Δ vs TV-slot instant |
+|---|---|---|---|---|
+| Hello, I Am a Witch | Mon 8:30am | AT-X 月曜 21:30 | = TV | 0 |
+| The Cold Sato-san | Tue 9:30am | 22:00 | — | +30 |
+| Laid-Off Cheat-Granting Mage | Tue 11:30am | Wed 00:00 | — | +30 |
+| Super Psychic Policeman Chojo | Tue 10:45am | Fuji 23:00 | — | +45 |
+| **The Apothecary Diaries S3** | **Fri 11:00am** | 金曜 23:00 | **土曜 0:00** | **+60** |
+| **A Certain Dark Item** | **Fri 11:30am** | — | 土曜 0:30 | **+120** |
+| Red River | Tue 13:35 | 14:00 | — | **−25** (CR before the TV slot) |
+
+⇒ range is **−25 … +120 min**, and the +60/+120 cases are the streaming-slot ones. An entry built
+from a 放送情報 **TV** slot can therefore be an hour or two early even when the hour looks clean.
+The official site's 配信情報 block is what to copy, not the 放送情報 one — `official_slots.py`
+tags slots `tv|stream`, so prefer the `stream` row when both exist.
 
 Read the real times instead of deriving them:
 
 ```sh
 python3 scripts/cr_calendar.py                 # or --diff YYYY-MM-DD to compare with the calendar
 ```
+
+Note `--diff` compares the row's own date only. CR's page is a rolling ~1-week window, so a future
+date returns **0 rows** — that is not a match, and it must not be read as "nothing scheduled".
 
 Two hard constraints on that page, both verified:
 * **The `?filter=premium` param is mandatory.** Without it (or with `filter=all`) the response
