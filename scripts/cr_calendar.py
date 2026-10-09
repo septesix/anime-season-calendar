@@ -112,7 +112,7 @@ def main():
                 print("  NOT-IN-CAL  %-52s CR %s %s" % (r["title"][:52], r["time"], r["wd"]))
             else:
                 got = int(mine[:2]) * 60 + int(mine[3:5])
-                d = got - want
+                d = want - got                              # >0 = calendar is EARLY (miss the drop)
                 tag = "MATCH" if d == 0 else ("MISMATCH %+d min" % d)
                 print("  %-16s %-52s cal %s  CR %s" % (tag, r["title"][:52], mine, r["time"]))
     else:
