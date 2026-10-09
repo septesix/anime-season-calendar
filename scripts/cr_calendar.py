@@ -79,13 +79,27 @@ def parse():
                          title=html.unescape(re.sub(r"\s+", " ", m.group(1)).strip(" -–"))))
     return sorted(rows, key=lambda r: r["dt"])
 
+SEASONISH = re.compile(r"\s*(?:season\s*\d+|cour\s*\d+|\b(?:ii|iii|iv|v|vi)\b)\s*$", re.I)
+
+def stem(t):
+    """Join key: strip (Platform), punctuation and a trailing Season/Cour marker, so
+    CR's 'LINK CLICK' matches the calendar's 'LINK CLICK Season 3 (Crunchyroll)'. The old
+    fixed 12-char prefix test broke the moment either side carried such a suffix."""
+    x = norm(t)
+    for _ in range(3):
+        y = SEASONISH.sub("", x)
+        if y == x: break
+        x = y
+    return x.strip()
+
+
 def cal_on(date, calendar):
     nx = (datetime.date.fromisoformat(date) + datetime.timedelta(days=1)).isoformat()
     r = subprocess.run(["apple-calendar", "list", "--calendar", calendar, "--start", date,
                         "--end", nx, "--compact"], capture_output=True, text=True)
     try: ev = json.loads(r.stdout)["data"]["events"]
     except Exception: sys.exit("!! could not read the calendar for %s: %s" % (date, r.stdout[:120]))
-    return {norm(e.get("title") or ""): (e.get("start") or "")[11:16] for e in ev}
+    return {stem(e.get("title") or ""): (e.get("start") or "")[11:16] for e in ev}
 
 def main():
     a = sys.argv[1:]
@@ -103,10 +117,10 @@ def main():
         print("== CR published vs calendar on %s (%d rows) ==" % (diff, len(rows)))   # every day's
         seen = set()
         for r in rows:
-            k = norm(r["title"])
+            k = stem(r["title"])
             if k in seen: continue
             seen.add(k)
-            mine = next((v for kk, v in c.items() if kk[:12] == k[:12] and k[:12]), None)
+            mine = c.get(k)
             want = r["dt"].hour * 60 + r["dt"].minute      # was int(s[:-2])*60: minutes dropped
             if mine is None:
                 print("  NOT-IN-CAL  %-52s CR %s %s" % (r["title"][:52], r["time"], r["wd"]))
